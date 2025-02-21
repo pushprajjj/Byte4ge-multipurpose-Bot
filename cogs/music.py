@@ -61,6 +61,14 @@ class Music(commands.Cog):
                 )
                 return await ctx.send(embed=embed)
 
+            if query.startswith('http') and 'playlist' in query:
+                embed = discord.Embed(
+                    title="❌ Error",
+                    description="Playlists are not supported. Please provide a single song URL or name.",
+                    color=discord.Color.red()
+                )
+                return await ctx.send(embed=embed)
+
             if not ctx.author.voice:
                 embed = discord.Embed(
                     title="❌ Error",
