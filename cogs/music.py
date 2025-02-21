@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from discord import FFmpegPCMAudio
 from yt_dlp import YoutubeDL
+from discord.ui import Button, View
 
 class Music(commands.Cog):
     def __init__(self, bot):
@@ -35,19 +36,56 @@ class Music(commands.Cog):
     # YouTube DL instance
     ytdl = YoutubeDL(ytdl_options)
 
-    def check_queue(self, ctx):
+    async def check_queue(self, ctx):
         """Checks and plays the next song in the queue."""
         if ctx.guild.id in self.queues and self.queues[ctx.guild.id]:
             song = self.queues[ctx.guild.id].pop(0)
             source = song['source']
-            ctx.voice_client.play(source, after=lambda e: self.check_queue(ctx))
+            ctx.voice_client.play(source, after=lambda e: self.bot.loop.create_task(self.check_queue(ctx)))
 
             embed = discord.Embed(
                 title="🎶 Now Playing",
                 description=f"**{song['title']}**",
                 color=discord.Color.green()
             )
-            return ctx.send(embed=embed)
+            await ctx.send(embed=embed, view=self.create_player_controls(ctx))
+
+    def create_player_controls(self, ctx):
+        """Creates a view with player control buttons."""
+        view = View()
+
+        button_pause = Button(label="Pause", style=discord.ButtonStyle.primary)
+        button_resume = Button(label="Resume", style=discord.ButtonStyle.primary)
+        button_skip = Button(label="Skip", style=discord.ButtonStyle.primary)
+        button_stop = Button(label="Stop", style=discord.ButtonStyle.danger)
+
+        async def pause_callback(interaction):
+            await self.pause(ctx)
+            await interaction.response.defer()
+
+        async def resume_callback(interaction):
+            await self.resume(ctx)
+            await interaction.response.defer()
+
+        async def skip_callback(interaction):
+            await self.skip(ctx)
+            await interaction.response.defer()
+
+        async def stop_callback(interaction):
+            await self.stop(ctx)
+            await interaction.response.defer()
+
+        button_pause.callback = pause_callback
+        button_resume.callback = resume_callback
+        button_skip.callback = skip_callback
+        button_stop.callback = stop_callback
+
+        view.add_item(button_pause)
+        view.add_item(button_resume)
+        view.add_item(button_skip)
+        view.add_item(button_stop)
+
+        return view
 
     @commands.command()
     async def play(self, ctx, *, query=None):
@@ -95,14 +133,14 @@ class Music(commands.Cog):
 
                     voice = ctx.voice_client
                     if not voice.is_playing():
-                        voice.play(source, after=lambda _: self.check_queue(ctx))
+                        voice.play(source, after=lambda _: self.bot.loop.create_task(self.check_queue(ctx)))
 
                         embed = discord.Embed(
                             title="🎶 Now Playing",
                             description=f"**{entry['title']}**",
                             color=discord.Color.green()
                         )
-                        await ctx.send(embed=embed)
+                        await ctx.send(embed=embed, view=self.create_player_controls(ctx))
                     else:
                         if ctx.guild.id not in self.queues:
                             self.queues[ctx.guild.id] = []
@@ -123,13 +161,12 @@ class Music(commands.Cog):
                 )
                 await ctx.send(embed=embed)
 
-
     @commands.command()
     async def skip(self, ctx):
         """Skips the current song and plays the next one in the queue."""
         if ctx.voice_client and ctx.voice_client.is_playing():
             ctx.voice_client.stop()  # Stop the current song
-            self.check_queue(ctx)  # Play the next song if available
+            await self.check_queue(ctx)  # Play the next song if available
 
             embed = discord.Embed(
                 title="⏭️ Skipped",

@@ -33,7 +33,8 @@ class Gemini(commands.Cog):
         if self.bot.user.mentioned_in(message):
             async with message.channel.typing():
                 response = await self.get_gemini_response(message.content)
-                await message.reply(response, mention_author=True)
+                embed = discord.Embed(description=response, color=discord.Color.blue())
+                await message.reply(embed=embed, mention_author=True)
 
 async def setup(bot):
     await bot.add_cog(Gemini(bot))
