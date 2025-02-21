@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 import asyncio
 import os
-from gemini import get_gemini_response
+
 
 intents = discord.Intents.default()
 intents.members = True 
@@ -37,18 +37,6 @@ async def update_presence():
             await bot.change_presence(activity=status)
             await asyncio.sleep(5)  # Change status every 10 seconds
 
-
-@bot.event
-async def on_message(message):
-    if message.author.bot:
-        return  # Ignore bot messages
-
-    if bot.user.mentioned_in(message):  # If bot is mentioned
-        async with message.channel.typing():
-            response = await get_gemini_response(message.content)
-        await message.reply(response, mention_author=False)
-
-    await bot.process_commands(message)  # Process other commands
 
 
 async def load_cogs():

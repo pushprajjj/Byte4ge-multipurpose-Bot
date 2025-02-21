@@ -14,7 +14,7 @@ intents.message_content = True  # Enable Message Content Intent
 # Initialize the bot with a command prefix and intents
 # bot = commands.Bot(command_prefix=".", intents=intents)
 bot = commands.Bot(
-    command_prefix='+',
+    command_prefix='.',
     intents=discord.Intents.all(),
     allowed_mentions=discord.AllowedMentions(
         everyone=False,
@@ -68,6 +68,17 @@ def check_queue(ctx, id):
         voice.play(source, after=lambda x=None: check_queue(ctx, id))
         
         
+        # Command: Respond to !hello
+@bot.command()
+async def hello(ctx):
+    await ctx.send(f'Hello, {ctx.author.mention}!')
+
+# Command: Roll a dice
+@bot.command()
+async def roll(ctx):
+    result = random.randint(1, 6)
+    await ctx.send(f'🎲 You rolled: **{result}**')
+
 # Ping command
 @bot.command()
 async def ping(ctx):
@@ -177,8 +188,7 @@ async def stop(ctx):
 async def skip(ctx):
     if ctx.voice_client.is_playing():
         ctx.voice_client.stop()
-        embed = discord.Embed(title="Skipped ⏭️", description="Skipped the current song!", color=discord.Color.orange())
-        await ctx.send(embed=embed)
+        await ctx.send("Skipped ⏭️")
         check_queue(ctx, ctx.guild.id)
     else:
         await ctx.send("Nothing is playing!")
@@ -283,11 +293,8 @@ async def on_ready():
     print(f'Logged in as {bot.user.name} (ID: {bot.user.id})')
     print('------')
 
-
-
 # Run the bot with your token
-# bot.run('Njc0NTI5MTMzMTc0MTk0MjE2.GKYAzo.LqZvrZpknZyhfiA0wDpDm3R2pBx46qHj7XSyAo') #production token
-bot.run('Njc1MjUwOTc2MTc2NzM0MjA4.GBjbqD.zwLlmqbLajQG0yb__Fm3DpJ_MConDTGNDZm3Hs') #testing token
+bot.run('Njc0NTI5MTMzMTc0MTk0MjE2.GKYAzo.LqZvrZpknZyhfiA0wDpDm3R2pBx46qHj7XSyAo')
 
 
 

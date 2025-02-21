@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+import random
 
 class General(commands.Cog):
     """General Commands Cog"""
@@ -12,6 +13,19 @@ class General(commands.Cog):
         """Shows bot latency."""
         latency = round(self.bot.latency * 1000)  # Convert to ms
         embed = discord.Embed(title="🏓 Pong!", description=f"Latency: **{latency}ms**", color=discord.Color.blue())
+        await ctx.send(embed=embed)
+
+    @commands.command()
+    async def hello(self, ctx):
+        """Say hello to the bot."""
+        embed = discord.Embed(title="👋 Hello!", description=f"Hello {ctx.author.mention}!", color=discord.Color.blue())
+        await ctx.send(embed=embed)
+
+    @commands.command()
+    async def roll(self, ctx):
+        """Roll a dice."""
+        dice_roll = random.randint(1, 6)
+        embed = discord.Embed(title="🎲 Dice Roll", description=f"You rolled a {dice_roll}!", color=discord.Color.orange())
         await ctx.send(embed=embed)
 
     @commands.command(aliases=["helpme"])
