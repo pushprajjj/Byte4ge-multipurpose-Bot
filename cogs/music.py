@@ -1,13 +1,15 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord import FFmpegPCMAudio
 from yt_dlp import YoutubeDL
 from discord.ui import Button, View
+import asyncio
 
 class Music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.queues = {}  # Dictionary to store music queues for each server
+        self.disconnect_timers = {}  # Dictionary to store disconnect timers for each server
 
     # YouTube DL options
     ytdl_options = {
@@ -49,6 +51,8 @@ class Music(commands.Cog):
                 color=discord.Color.green()
             )
             await ctx.send(embed=embed, view=self.create_player_controls(ctx))
+        else:
+            await self.start_disconnect_timer(ctx)
 
     def create_player_controls(self, ctx):
         """Creates a view with player control buttons."""
@@ -86,6 +90,24 @@ class Music(commands.Cog):
         view.add_item(button_stop)
 
         return view
+
+    async def start_disconnect_timer(self, ctx):
+        """Starts a timer to disconnect the bot if no song is played for 1 minute."""
+        if ctx.guild.id in self.disconnect_timers:
+            self.disconnect_timers[ctx.guild.id].cancel()
+
+        async def disconnect():
+            await asyncio.sleep(60)
+            if ctx.voice_client and not ctx.voice_client.is_playing():
+                await ctx.voice_client.disconnect()
+                embed = discord.Embed(
+                    title="🔌 Disconnected",
+                    description="No song was played for 1 minute. Disconnecting from the voice channel. Jarurat pare to yad krna. 😊[.play] apna command h",
+                    color=discord.Color.greyple()
+                )
+                await ctx.send(embed=embed)
+
+        self.disconnect_timers[ctx.guild.id] = self.bot.loop.create_task(disconnect())
 
     @commands.command()
     async def play(self, ctx, *, query=None):
@@ -161,6 +183,8 @@ class Music(commands.Cog):
                 )
                 await ctx.send(embed=embed)
 
+            await self.start_disconnect_timer(ctx)
+
     @commands.command()
     async def skip(self, ctx):
         """Skips the current song and plays the next one in the queue."""
@@ -181,6 +205,8 @@ class Music(commands.Cog):
                 color=discord.Color.red()
             )
             await ctx.send(embed=embed)
+
+        await self.start_disconnect_timer(ctx)
 
     @commands.command()
     async def queue(self, ctx):
@@ -220,6 +246,8 @@ class Music(commands.Cog):
             )
             await ctx.send(embed=embed)
 
+        await self.start_disconnect_timer(ctx)
+
     @commands.command()
     async def pause(self, ctx):
         """Pauses the current song."""
@@ -239,6 +267,8 @@ class Music(commands.Cog):
             )
             await ctx.send(embed=embed)
 
+        await self.start_disconnect_timer(ctx)
+
     @commands.command()
     async def stop(self, ctx):
         """Stops music playback."""
@@ -246,6 +276,8 @@ class Music(commands.Cog):
             ctx.voice_client.stop()
             embed = discord.Embed(title="⏹️ Stopped", description="Music playback has been stopped.", color=discord.Color.red())
             await ctx.send(embed=embed)
+
+        await self.start_disconnect_timer(ctx)
 
     @commands.command()
     async def leave(self, ctx):
