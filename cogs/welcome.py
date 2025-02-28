@@ -6,10 +6,14 @@ class Welcome(commands.Cog):
         self.bot = bot
         self.welcome_channel_id = 962746897787920396  # Replace with your welcome channel ID
         self.default_role_id = 1334522873959813170  # Replace with your default role ID
+        self.server_id = 962746896877756536  # The specific server ID
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
         """Triggered when a new member joins the server."""
+        if member.guild.id != self.server_id:
+            return  # Exit if the member did not join the specified server
+
         channel = self.bot.get_channel(self.welcome_channel_id)
         if channel:
             custom_emoji1 = self.bot.get_emoji(1337651913306411048)  

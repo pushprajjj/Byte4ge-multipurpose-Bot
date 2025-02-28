@@ -10,6 +10,7 @@ class Music(commands.Cog):
         self.bot = bot
         self.queues = {}  # Dictionary to store music queues for each server
         self.disconnect_timers = {}  # Dictionary to store disconnect timers for each server
+        self.current_url = {} 
 
     # YouTube DL options
     ytdl_options = {
@@ -152,6 +153,8 @@ class Music(commands.Cog):
                     url2 = entry['url']
                     source = discord.FFmpegOpusAudio(url2, **self.ffmpeg_options)
                     song = {'source': source, 'title': entry['title']}
+                    
+                    self.current_url[ctx.guild.id] = url2
 
                     voice = ctx.voice_client
                     if not voice.is_playing():
@@ -286,6 +289,65 @@ class Music(commands.Cog):
             await ctx.voice_client.disconnect()
             embed = discord.Embed(title="🔌 Disconnected", description="Left the voice channel.", color=discord.Color.greyple())
             await ctx.send(embed=embed)
+
+    @commands.command()
+    async def seek(self, ctx, seconds: int):
+        """Seeks the current song by the specified number of seconds."""
+        if not ctx.voice_client or not ctx.voice_client.is_playing():
+            embed = discord.Embed(
+                title="❌ Error",
+                description="No song is currently playing.",
+                color=discord.Color.red()
+            )
+            return await ctx.send(embed=embed)
+
+        # Retrieve stored song URL
+        song_url = self.current_url.get(ctx.guild.id)
+        if not song_url:
+            embed = discord.Embed(
+                title="❌ Error",
+                description="Cannot seek, as the current song URL is unknown.",
+                color=discord.Color.red()
+            )
+            return await ctx.send(embed=embed)
+
+        # Get current playback position (estimate)
+        if ctx.voice_client.source and hasattr(ctx.voice_client.source, "_process"):
+            try:
+                # Extract the original seek time from FFmpeg args
+                current_time = float(ctx.voice_client.source._process.args[2].split('=')[1])
+            except:
+                current_time = 0
+        else:
+            current_time = 0
+
+        # Calculate new seek time
+        seek_time = max(0, current_time + seconds)
+
+        # Stop current playback
+        ctx.voice_client.stop()
+
+        # Recreate the FFmpeg source with seek time
+        ffmpeg_opts = {
+            'before_options': f"-ss {seek_time} -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+            'options': '-vn'
+        }
+        new_source = discord.FFmpegPCMAudio(song_url, **ffmpeg_opts)
+        
+        # Play the new source
+        ctx.voice_client.play(new_source, after=lambda _: self.bot.loop.create_task(self.check_queue(ctx)))
+
+        # Confirm seek operation
+        embed = discord.Embed(
+            title="⏩ Seek",
+            description=f"Seeked to `{seek_time}` seconds.",
+            color=discord.Color.green()
+        )
+        await ctx.send(embed=embed)
+
+
+
+
 
 # Adding the cog properly
 async def setup(bot):
