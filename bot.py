@@ -9,7 +9,7 @@ import wavelink
 intents = discord.Intents.all()
 
 bot = commands.Bot(
-    command_prefix='.',
+    command_prefix='+',
     intents=intents,
     allowed_mentions=discord.AllowedMentions(everyone=False, roles=False),
     activity=discord.CustomActivity(name='byte4ge.com | Weaving Web Magic With Excellence.', emoji="😎"),
