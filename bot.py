@@ -57,4 +57,4 @@ async def on_ready():
     await load_cogs()
     bot.loop.create_task(update_presence())
 
-bot.run('Njc1MjUwOTc2MTc2NzM0MjA4.GBjbqD.zwLlmqbLajQG0yb__Fm3DpJ_MConDTGNDZm3Hs')  # testing token
+bot.run('___Your token____')  # testing token
