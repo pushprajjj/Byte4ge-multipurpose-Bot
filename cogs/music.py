@@ -14,7 +14,8 @@ class Music(commands.Cog):
         self.bot = bot
         self.queues = {}  # Dictionary to store music queues for each server
         self.disconnect_timers = {}  # Dictionary to store disconnect timers for each server
-        self.current_url = {} 
+        self.current_url = {}
+        self.now_playing = {}  # Store currently playing song info
 
     async def get_youtube_suggestions(self, query: str) -> list[str]:
         """Get YouTube search suggestions for a query."""
@@ -96,38 +97,69 @@ class Music(commands.Cog):
 
     def create_player_controls(self, ctx):
         """Creates a view with player control buttons."""
-        view = View()
+        view = View(timeout=None)  # Make buttons persistent
 
         button_pause = Button(label="Pause", style=discord.ButtonStyle.primary)
         button_resume = Button(label="Resume", style=discord.ButtonStyle.primary)
         button_skip = Button(label="Skip", style=discord.ButtonStyle.primary)
         button_stop = Button(label="Stop", style=discord.ButtonStyle.danger)
+        button_queue = Button(label="Queue", style=discord.ButtonStyle.secondary)
 
         async def pause_callback(interaction):
-            await self.pause(ctx)
-            await interaction.response.defer()
+            if ctx.voice_client and ctx.voice_client.is_playing():
+                ctx.voice_client.pause()
+                await interaction.response.send_message("Paused!", ephemeral=True)
+            else:
+                await interaction.response.send_message("Nothing is playing!", ephemeral=True)
 
         async def resume_callback(interaction):
-            await self.resume(ctx)
-            await interaction.response.defer()
+            if ctx.voice_client and ctx.voice_client.is_paused():
+                ctx.voice_client.resume()
+                await interaction.response.send_message("Resumed!", ephemeral=True)
+            else:
+                await interaction.response.send_message("Nothing is paused!", ephemeral=True)
 
         async def skip_callback(interaction):
-            await self.skip(ctx)
-            await interaction.response.defer()
+            if ctx.voice_client and ctx.voice_client.is_playing():
+                ctx.voice_client.stop()
+                await interaction.response.send_message("Skipped!", ephemeral=True)
+                await self.check_queue(ctx)
+            else:
+                await interaction.response.send_message("Nothing to skip!", ephemeral=True)
 
         async def stop_callback(interaction):
-            await self.stop(ctx)
-            await interaction.response.defer()
+            if ctx.voice_client:
+                self.queues[ctx.guild.id] = []
+                ctx.voice_client.stop()
+                await ctx.voice_client.disconnect()
+                await interaction.response.send_message("Stopped and cleared queue!", ephemeral=True)
+            else:
+                await interaction.response.send_message("Not playing anything!", ephemeral=True)
+
+        async def queue_callback(interaction):
+            if ctx.guild.id not in self.queues or not self.queues[ctx.guild.id]:
+                await interaction.response.send_message("Queue is empty!", ephemeral=True)
+                return
+
+            queue_list = "\n".join([f"{i+1}. {song['title']}" for i, song in enumerate(self.queues[ctx.guild.id])])
+            embed = discord.Embed(
+                title="Current Queue",
+                description=queue_list,
+                color=discord.Color.blue()
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
 
         button_pause.callback = pause_callback
         button_resume.callback = resume_callback
         button_skip.callback = skip_callback
         button_stop.callback = stop_callback
+        button_queue.callback = queue_callback
 
         view.add_item(button_pause)
         view.add_item(button_resume)
         view.add_item(button_skip)
         view.add_item(button_stop)
+        view.add_item(button_queue)
 
         return view
 
@@ -188,20 +220,35 @@ class Music(commands.Cog):
 
             for entry in entries:
                 url2 = entry['url']
-                source = discord.FFmpegOpusAudio(url2, **self.ffmpeg_options)
-                song = {'source': source, 'title': entry['title']}
+                source = FFmpegPCMAudio(url2, **self.ffmpeg_options)
+                
+                song = {
+                    'source': source,
+                    'title': entry['title'],
+                    'duration': entry.get('duration', 0),
+                    'thumbnail': entry.get('thumbnail', None),
+                    'requester': ctx.author.name
+                }
                 
                 self.current_url[ctx.guild.id] = url2
 
                 voice = ctx.voice_client
                 if not voice.is_playing():
                     voice.play(source, after=lambda _: self.bot.loop.create_task(self.check_queue(ctx)))
+                    self.now_playing[ctx.guild.id] = song
 
                     embed = discord.Embed(
                         title="🎶 Now Playing",
                         description=f"**{entry['title']}**",
                         color=discord.Color.green()
                     )
+                    if song['thumbnail']:
+                        embed.set_thumbnail(url=song['thumbnail'])
+                    embed.add_field(name="Requested by", value=song['requester'], inline=True)
+                    if song['duration']:
+                        minutes, seconds = divmod(song['duration'], 60)
+                        embed.add_field(name="Duration", value=f"{minutes}:{seconds:02d}", inline=True)
+                    
                     await ctx.send(embed=embed, view=self.create_player_controls(ctx))
                 else:
                     if ctx.guild.id not in self.queues:
@@ -213,6 +260,13 @@ class Music(commands.Cog):
                         description=f"**{entry['title']}**",
                         color=discord.Color.blue()
                     )
+                    if song['thumbnail']:
+                        embed.set_thumbnail(url=song['thumbnail'])
+                    embed.add_field(name="Requested by", value=song['requester'], inline=True)
+                    if song['duration']:
+                        minutes, seconds = divmod(song['duration'], 60)
+                        embed.add_field(name="Duration", value=f"{minutes}:{seconds:02d}", inline=True)
+                    
                     await ctx.send(embed=embed)
 
         except Exception as e:
@@ -309,6 +363,34 @@ class Music(commands.Cog):
             await interaction.followup.send("👋 Left the voice channel!")
         else:
             await interaction.followup.send("❌ Not in a voice channel!", ephemeral=True)
+
+    @app_commands.command(name="nowplaying", description="Show information about the current song")
+    async def nowplaying_slash(self, interaction: discord.Interaction):
+        """Slash command to show current song info."""
+        await interaction.response.defer()
+        
+        if not interaction.guild.voice_client or not interaction.guild.voice_client.is_playing():
+            await interaction.followup.send("❌ Nothing is playing!", ephemeral=True)
+            return
+
+        song = self.now_playing.get(interaction.guild.id)
+        if not song:
+            await interaction.followup.send("❌ Song information not available!", ephemeral=True)
+            return
+
+        embed = discord.Embed(
+            title="🎵 Now Playing",
+            description=f"**{song['title']}**",
+            color=discord.Color.green()
+        )
+        if song['thumbnail']:
+            embed.set_thumbnail(url=song['thumbnail'])
+        embed.add_field(name="Requested by", value=song['requester'], inline=True)
+        if song['duration']:
+            minutes, seconds = divmod(song['duration'], 60)
+            embed.add_field(name="Duration", value=f"{minutes}:{seconds:02d}", inline=True)
+
+        await interaction.followup.send(embed=embed)
 
     # Keep the original prefix commands
     @commands.command()
