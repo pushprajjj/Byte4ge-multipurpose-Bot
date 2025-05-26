@@ -50,6 +50,15 @@ async def on_ready():
     """Bot startup event."""
     print(f'✅ Logged in as {bot.user.name}')
     await load_cogs()
+    
+    # Sync slash commands
+    print("🔄 Syncing slash commands...")
+    try:
+        synced = await bot.tree.sync()
+        print(f"✅ Synced {len(synced)} slash command(s)")
+    except Exception as e:
+        print(f"❌ Failed to sync slash commands: {e}")
+    
     bot.loop.create_task(update_presence())
 
-bot.run('------------') #testing token
+bot.run('-----testing token

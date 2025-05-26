@@ -43,7 +43,7 @@ async def on_ready():
             client=bot,
             nodes=[
                 wavelink.Node(
-                    uri='http://lavalinkv3.devxcode.in:80',
+                    uri='https://lavalink.devamop.in:2333',
                     password='DevamOP',
                     identifier='MAIN',
                    
@@ -57,4 +57,5 @@ async def on_ready():
     await load_cogs()
     bot.loop.create_task(update_presence())
 
-bot.run('-------')  # testing token
+bot.run('-----------ing token
+
