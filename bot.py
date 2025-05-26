@@ -61,4 +61,5 @@ async def on_ready():
     
     bot.loop.create_task(update_presence())
 
-bot.run('-----testing token
+bot.run('----------------')
+

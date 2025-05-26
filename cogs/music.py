@@ -5,6 +5,9 @@ from discord import FFmpegPCMAudio
 from yt_dlp import YoutubeDL
 from discord.ui import Button, View
 import asyncio
+import aiohttp
+import urllib.parse
+import re
 
 class Music(commands.Cog):
     def __init__(self, bot):
@@ -12,6 +15,41 @@ class Music(commands.Cog):
         self.queues = {}  # Dictionary to store music queues for each server
         self.disconnect_timers = {}  # Dictionary to store disconnect timers for each server
         self.current_url = {} 
+
+    async def get_youtube_suggestions(self, query: str) -> list[str]:
+        """Get YouTube search suggestions for a query."""
+        if not query:
+            return []
+        
+        try:
+            # Encode the query for URL
+            encoded_query = urllib.parse.quote(query)
+            
+            # Use YouTube's suggestion API
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"http://suggestqueries.google.com/complete/search?client=youtube&ds=yt&q={encoded_query}"
+                ) as response:
+                    if response.status == 200:
+                        data = await response.text()
+                        # Extract suggestions from the response
+                        suggestions = re.findall(r'"([^"]*)"', data)[1:6]  # Get up to 5 suggestions
+                        return suggestions
+                    return []
+        except Exception:
+            return []
+
+    async def song_autocomplete(
+        self, 
+        interaction: discord.Interaction, 
+        current: str,
+    ) -> list[app_commands.Choice[str]]:
+        """Autocomplete callback for the play command."""
+        suggestions = await self.get_youtube_suggestions(current)
+        return [
+            app_commands.Choice(name=suggestion[:100], value=suggestion)  # Discord limits name to 100 characters
+            for suggestion in suggestions
+        ]
 
     # YouTube DL options
     ytdl_options = {
@@ -195,6 +233,7 @@ class Music(commands.Cog):
 
     @app_commands.command(name="play", description="Play a song from YouTube")
     @app_commands.describe(query="Song name or YouTube URL")
+    @app_commands.autocomplete(query=song_autocomplete)
     async def play_slash(self, interaction: discord.Interaction, query: str):
         """Slash command to play music."""
         await interaction.response.defer()
